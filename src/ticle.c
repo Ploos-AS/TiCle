@@ -149,6 +149,39 @@ static void dispatch_tcl_message(struct ticle_ctx *ctx, const struct irc_message
     eval_callback(ctx, 2, objv);
 }
 
+static void dispatch_tcl_typed(struct ticle_ctx *ctx, const struct irc_message *msg) {
+    Tcl_CmdInfo info;
+    Tcl_Obj *objv[2], *dict, *params;
+    char callback[64];
+    size_t i, n;
+
+    n = strlen(msg->command);
+    if (n + strlen("ticle::on_") + 1 > sizeof callback) return;
+    strcpy(callback, "ticle::on_");
+    for (i = 0; i < n; ++i) {
+        char ch = msg->command[i];
+        callback[strlen("ticle::on_") + i] =
+            (ch >= 'A' && ch <= 'Z') ? (char)(ch - 'A' + 'a') : ch;
+    }
+    callback[strlen("ticle::on_") + n] = '\0';
+
+    if (!Tcl_GetCommandInfo(ctx->interp, callback, &info)) return;
+
+    dict = Tcl_NewDictObj();
+    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("prefix", -1),
+                   Tcl_NewStringObj(msg->prefix ? msg->prefix : "", -1));
+    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("command", -1),
+                   Tcl_NewStringObj(msg->command, -1));
+    params = Tcl_NewListObj(0, NULL);
+    for (i = 0; i < (size_t)msg->nparams; ++i)
+        Tcl_ListObjAppendElement(ctx->interp, params, Tcl_NewStringObj(msg->params[i], -1));
+    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("params", -1), params);
+
+    objv[0] = Tcl_NewStringObj(callback, -1);
+    objv[1] = dict;
+    eval_callback(ctx, 2, objv);
+}
+
 static void handle_line(struct ticle_ctx *ctx, const char *line) {
     struct irc_message msg;
     if (strncmp(line, "PING ", 5) == 0) {
@@ -157,8 +190,10 @@ static void handle_line(struct ticle_ctx *ctx, const char *line) {
             (void)irc_send_line(ctx, pong);
     }
     dispatch_tcl_line(ctx, line);
-    if (parse_irc_message(line, &msg) == 0)
+    if (parse_irc_message(line, &msg) == 0) {
         dispatch_tcl_message(ctx, &msg);
+        dispatch_tcl_typed(ctx, &msg);
+    }
 }
 
 static int run_loop(struct ticle_ctx *ctx) {
