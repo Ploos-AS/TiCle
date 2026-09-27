@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200112L
 
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <poll.h>
 #include <stdio.h>
@@ -58,16 +59,55 @@ static int tcl_raw_cmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 static int connect_tcp(const char *host, const char *port) {
     struct addrinfo hints, *res, *it;
     int fd = -1, rc;
+
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC; hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
     rc = getaddrinfo(host, port, &hints, &res);
-    if (rc != 0) { fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rc)); return -1; }
+    if (rc != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rc));
+        return -1;
+    }
+
     for (it = res; it; it = it->ai_next) {
+        int flags, err = 0;
+        socklen_t errlen = sizeof err;
+        struct pollfd pfd;
+
         fd = socket(it->ai_family, it->ai_socktype, it->ai_protocol);
         if (fd < 0) continue;
-        if (connect(fd, it->ai_addr, it->ai_addrlen) == 0) break;
-        close(fd); fd = -1;
+
+        flags = fcntl(fd, F_GETFL, 0);
+        if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+            close(fd);
+            fd = -1;
+            continue;
+        }
+
+        rc = connect(fd, it->ai_addr, it->ai_addrlen);
+        if (rc == 0) break;
+        if (errno != EINPROGRESS) {
+            close(fd);
+            fd = -1;
+            continue;
+        }
+
+        pfd.fd = fd;
+        pfd.events = POLLOUT;
+        pfd.revents = 0;
+        do {
+            rc = poll(&pfd, 1, 10000);
+        } while (rc < 0 && errno == EINTR);
+
+        if (rc <= 0 || !(pfd.revents & (POLLOUT | POLLERR | POLLHUP)) ||
+            getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &errlen) < 0 || err != 0) {
+            close(fd);
+            fd = -1;
+            continue;
+        }
+        break;
     }
+
     freeaddrinfo(res);
     return fd;
 }
@@ -195,6 +235,7 @@ static int run_loop(struct ticle_ctx *ctx) {
             if (n == 0) return 0;
             if (n < 0) {
                 if (errno == EINTR) continue;
+                if (errno == EAGAIN || errno == EWOULDBLOCK) break;
                 perror("recv");
                 return -1;
             }
