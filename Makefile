@@ -14,12 +14,16 @@ endif
 
 all: ticle
 
-ticle: src/ticle.c
-	$(CC) $(CFLAGS) $(TCL_CFLAGS) -o $@ $< $(TCL_LIBS)
+ticle: src/ticle.c src/irc.c src/irc.h
+	$(CC) $(CFLAGS) $(TCL_CFLAGS) -o $@ src/ticle.c src/irc.c $(TCL_LIBS)
 
-check: ticle
+tests/test_irc: tests/test_irc.c src/irc.c src/irc.h
+	$(CC) $(CFLAGS) -o $@ tests/test_irc.c src/irc.c
+
+check: ticle tests/test_irc
 	./ticle 2>/dev/null || true
+	./tests/test_irc
 	tclsh tests/test_core.tcl
 
 clean:
-	rm -f ticle
+	rm -f ticle tests/test_irc
