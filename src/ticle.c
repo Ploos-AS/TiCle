@@ -11,18 +11,11 @@
 
 #include <tcl.h>
 
-#define TICLE_BUFSIZE 4096
-#define TICLE_MAX_PARAMS 15
+#include "irc.h"
+
+#define TICLE_BUFSIZE TICLE_IRC_BUFSIZE
 
 struct ticle_ctx { int sock; Tcl_Interp *interp; };
-
-struct irc_message {
-    char storage[TICLE_BUFSIZE];
-    char *prefix;
-    char *command;
-    char *params[TICLE_MAX_PARAMS];
-    int nparams;
-};
 
 static int send_all(int fd, const char *buf, size_t len) {
     size_t off = 0;
@@ -53,45 +46,6 @@ static int tcl_raw_cmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
         return TCL_ERROR;
     }
     return TCL_OK;
-}
-
-static int parse_irc_message(const char *line, struct irc_message *msg) {
-    char *p, *space;
-    memset(msg, 0, sizeof *msg);
-    if (strlen(line) >= sizeof msg->storage) return -1;
-    strcpy(msg->storage, line);
-    p = msg->storage;
-
-    if (*p == ':') {
-        msg->prefix = ++p;
-        space = strchr(p, ' ');
-        if (!space) return -1;
-        *space = '\0';
-        p = space + 1;
-        while (*p == ' ') ++p;
-    }
-
-    if (!*p) return -1;
-    msg->command = p;
-    space = strchr(p, ' ');
-    if (!space) return 0;
-    *space = '\0';
-    p = space + 1;
-
-    while (*p && msg->nparams < TICLE_MAX_PARAMS) {
-        while (*p == ' ') ++p;
-        if (!*p) break;
-        if (*p == ':') {
-            msg->params[msg->nparams++] = p + 1;
-            break;
-        }
-        msg->params[msg->nparams++] = p;
-        space = strchr(p, ' ');
-        if (!space) break;
-        *space = '\0';
-        p = space + 1;
-    }
-    return 0;
 }
 
 static int connect_tcp(const char *host, const char *port) {
@@ -209,7 +163,7 @@ static void handle_line(struct ticle_ctx *ctx, const char *line) {
             (void)irc_send_line(ctx, pong);
     }
     dispatch_tcl_line(ctx, line);
-    if (parse_irc_message(line, &msg) == 0) {
+    if (irc_parse_message(line, &msg) == 0) {
         dispatch_tcl_message(ctx, &msg);
         dispatch_tcl_typed(ctx, &msg);
     }
