@@ -41,6 +41,35 @@ assert_equal [lindex $::ticle::sent end] {PRIVMSG #test :hello} "channel reply"
 ticle::reply [dict create nick alice target TiCle] hello
 assert_equal [lindex $::ticle::sent end] {PRIVMSG alice :hello} "private reply"
 
+set ::ticle::sent {}
+ticle::privmsg #test {hello world}
+assert_equal [lindex $::ticle::sent end] {PRIVMSG #test :hello world} "privmsg command"
+
+ticle::notice alice {heads up}
+assert_equal [lindex $::ticle::sent end] {NOTICE alice :heads up} "notice command"
+
+ticle::join #test
+assert_equal [lindex $::ticle::sent end] {JOIN #test} "join command"
+
+ticle::join #secret key123
+assert_equal [lindex $::ticle::sent end] {JOIN #secret key123} "keyed join command"
+
+ticle::part #test {leaving now}
+assert_equal [lindex $::ticle::sent end] {PART #test :leaving now} "part command"
+
+ticle::nick NewNick
+assert_equal [lindex $::ticle::sent end] {NICK NewNick} "nick command"
+
+if {![catch {ticle::privmsg "#test\r\nQUIT" bad}]} {
+    fail "privmsg target accepted CR/LF injection"
+}
+if {![catch {ticle::notice alice "bad\nQUIT"}]} {
+    fail "notice text accepted CR/LF injection"
+}
+if {![catch {ticle::join {#bad channel}}]} {
+    fail "join accepted whitespace in channel"
+}
+
 set module [file join $root modules hello.tcl]
 set meta [ticle::module::load $module]
 assert_equal [dict get $meta name] hello "module metadata"
