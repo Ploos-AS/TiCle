@@ -70,6 +70,22 @@ int main(void) {
         expect(irc_parse_message(overlong, &m) == -1, "overlong input rejected");
     }
 
+    {
+        struct irc_identity identity;
+        irc_parse_identity("alice!user@example.org", &identity);
+        expect_str(identity.nick, "alice", "identity nick");
+        expect_str(identity.user, "user", "identity user");
+        expect_str(identity.host, "example.org", "identity host");
+
+        irc_parse_identity("irc.example.org", &identity);
+        expect_str(identity.nick, "", "server prefix has no nick");
+        expect_str(identity.user, "", "server prefix has no user");
+        expect_str(identity.host, "", "server prefix has no host");
+
+        irc_parse_identity(NULL, &identity);
+        expect_str(identity.nick, "", "NULL prefix has no nick");
+    }
+
     puts("PASS: IRC parser tests");
     return 0;
 }
