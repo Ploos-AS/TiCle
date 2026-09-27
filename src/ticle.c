@@ -20,6 +20,7 @@
 #include "state.h"
 #include "backoff.h"
 #include "nick.h"
+#include "outqueue.h"
 
 #define TICLE_BUFSIZE TICLE_IRC_BUFSIZE
 #define TICLE_REGISTRATION_TIMEOUT_SECONDS 30
@@ -54,6 +55,8 @@ struct ticle_ctx {
     unsigned int nick_collision;
     struct timespec registration_started;
     struct timespec last_rx;
+    struct timespec last_tx;
+    struct ticle_outqueue outqueue;
 };
 
 static int send_all(int fd, const char *buf, size_t len) {
@@ -95,8 +98,12 @@ static int tcl_raw_cmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
         Tcl_SetObjResult(interp, Tcl_NewStringObj("IRC line must not contain CR/LF", -1));
         return TCL_ERROR;
     }
-    if (irc_send_line(ctx, line) < 0) {
-        Tcl_SetObjResult(interp, Tcl_NewStringObj("failed to send IRC line", -1));
+    if (ctx->state != TICLE_ONLINE) {
+        Tcl_SetObjResult(interp, Tcl_NewStringObj("IRC connection is not online", -1));
+        return TCL_ERROR;
+    }
+    if (ticle_outqueue_push(&ctx->outqueue, line) < 0) {
+        Tcl_SetObjResult(interp, Tcl_NewStringObj("IRC outbound queue is full or line is invalid", -1));
         return TCL_ERROR;
     }
     return TCL_OK;
@@ -276,6 +283,16 @@ static int run_loop(struct ticle_ctx *ctx) {
     for (;;) {
         int ready = poll(&pfd, 1, 1000);
         if (ticle_stop_requested) return 0;
+        if (ctx->state == TICLE_ONLINE && ticle_outqueue_count(&ctx->outqueue) > 0) {
+            struct timespec now;
+            if (clock_gettime(CLOCK_MONOTONIC, &now) == 0 &&
+                (ctx->last_tx.tv_sec == 0 || now.tv_sec > ctx->last_tx.tv_sec)) {
+                const char *queued = ticle_outqueue_front(&ctx->outqueue);
+                if (queued && irc_send_line(ctx, queued) < 0) return -1;
+                ticle_outqueue_pop(&ctx->outqueue);
+                ctx->last_tx = now;
+            }
+        }
         if (ctx->state == TICLE_ONLINE && ctx->last_rx.tv_sec != 0) {
             struct timespec now;
             if (clock_gettime(CLOCK_MONOTONIC, &now) == 0 &&
@@ -374,6 +391,9 @@ int main(int argc, char **argv) {
     ctx.registration_started.tv_nsec = 0;
     ctx.last_rx.tv_sec = 0;
     ctx.last_rx.tv_nsec = 0;
+    ctx.last_tx.tv_sec = 0;
+    ctx.last_tx.tv_nsec = 0;
+    ticle_outqueue_init(&ctx.outqueue);
 
     Tcl_FindExecutable(argv[0]);
     ctx.interp = Tcl_CreateInterp();
@@ -411,6 +431,9 @@ int main(int argc, char **argv) {
             ctx.nick_collision = 0;
             ctx.last_rx.tv_sec = 0;
             ctx.last_rx.tv_nsec = 0;
+            ctx.last_tx.tv_sec = 0;
+            ctx.last_tx.tv_nsec = 0;
+            ticle_outqueue_init(&ctx.outqueue);
             if (clock_gettime(CLOCK_MONOTONIC, &ctx.registration_started) < 0) {
                 ctx.registration_started.tv_sec = 0;
                 ctx.registration_started.tv_nsec = 0;
