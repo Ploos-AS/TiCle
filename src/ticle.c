@@ -12,6 +12,7 @@
 #include <tcl.h>
 
 #include "irc.h"
+#include "config.h"
 
 #define TICLE_BUFSIZE TICLE_IRC_BUFSIZE
 
@@ -177,15 +178,24 @@ static int run_loop(struct ticle_ctx *ctx) {
 
 int main(int argc, char **argv) {
     struct ticle_ctx ctx;
+    struct ticle_config config;
     const char *host, *port, *nick, *user, *realname, *script;
     char nick_line[TICLE_BUFSIZE], user_line[TICLE_BUFSIZE];
-    if (argc != 5 && argc != 7) {
-        fprintf(stderr, "usage: %s host port nick script.tcl [user realname]\n", argv[0]);
+    if (argc == 3 && strcmp(argv[1], "-c") == 0) {
+        if (ticle_config_load(argv[2], &config) < 0) {
+            fprintf(stderr, "unable to load config: %s\n", argv[2]);
+            return 2;
+        }
+        host = config.host; port = config.port; nick = config.nick;
+        user = config.user; realname = config.realname; script = config.script;
+    } else if (argc == 5 || argc == 7) {
+        host = argv[1]; port = argv[2]; nick = argv[3]; script = argv[4];
+        user = argc == 7 ? argv[5] : nick;
+        realname = argc == 7 ? argv[6] : "TiCle IRC bot";
+    } else {
+        fprintf(stderr, "usage: %s -c config | host port nick script.tcl [user realname]\n", argv[0]);
         return 2;
     }
-    host = argv[1]; port = argv[2]; nick = argv[3]; script = argv[4];
-    user = argc == 7 ? argv[5] : nick;
-    realname = argc == 7 ? argv[6] : "TiCle IRC bot";
     ctx.sock = connect_tcp(host, port);
     if (ctx.sock < 0) { fprintf(stderr, "unable to connect to %s:%s\n", host, port); return 1; }
 
