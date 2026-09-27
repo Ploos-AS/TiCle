@@ -37,6 +37,59 @@ proc ticle::dispatch_command {msg} {
     return 1
 }
 
+
+proc ticle::validate_atom {value name} {
+    if {$value eq ""} {
+        error "$name must not be empty"
+    }
+    if {[string first "\r" $value] >= 0 || [string first "\n" $value] >= 0 || [string first " " $value] >= 0} {
+        error "$name contains invalid characters"
+    }
+}
+
+proc ticle::validate_text {text} {
+    if {[string first "\r" $text] >= 0 || [string first "\n" $text] >= 0} {
+        error "text must not contain CR/LF"
+    }
+}
+
+proc ticle::privmsg {target text} {
+    ticle::validate_atom $target target
+    ticle::validate_text $text
+    ticle::privmsg $target $text
+}
+
+proc ticle::notice {target text} {
+    ticle::validate_atom $target target
+    ticle::validate_text $text
+    ticle::raw "NOTICE $target :$text"
+}
+
+proc ticle::join {channel {key ""}} {
+    ticle::validate_atom $channel channel
+    if {$key eq ""} {
+        ticle::raw "JOIN $channel"
+    } else {
+        ticle::validate_atom $key key
+        ticle::raw "JOIN $channel $key"
+    }
+}
+
+proc ticle::part {channel {reason ""}} {
+    ticle::validate_atom $channel channel
+    ticle::validate_text $reason
+    if {$reason eq ""} {
+        ticle::raw "PART $channel"
+    } else {
+        ticle::raw "PART $channel :$reason"
+    }
+}
+
+proc ticle::nick {nickname} {
+    ticle::validate_atom $nickname nickname
+    ticle::raw "NICK $nickname"
+}
+
 proc ticle::reply {msg text} {
     set target [dict get $msg target]
     if {![string match "#*" $target]} {
