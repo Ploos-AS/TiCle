@@ -4,9 +4,9 @@ TiCle is a standalone IRC bot written in C with embedded Tcl for scripting.
 
 The core IRC client and bot runtime are implemented in C. Bot behaviour is intended to live primarily in Tcl scripts through a small, stable scripting API.
 
-## M0 scope
+## Current scope
 
-M0 establishes the project skeleton and architecture:
+TiCle currently provides:
 
 - standalone C IRC bot core
 - embedded Tcl interpreter
@@ -69,11 +69,25 @@ make
 ./ticle irc.example.net 6667 TiCle scripts/example.tcl
 ```
 
-For M0, TLS is not implemented yet. Use a test IRC server or local IRC daemon where plain TCP is acceptable.
+Configuration-file startup is also supported:
 
-## Tcl API (M0)
+```sh
+./ticle -c config/example.conf
+```
 
-TiCle registers this command:
+The M1 configuration format is deliberately small and data-only. Supported keys are `host`, `port`, `nick`, `user`, `realname`, and `script`. The required keys are `host`, `port`, `nick`, and `script`; `user` defaults to the nickname and `realname` defaults to `TiCle IRC bot`. Unknown keys are rejected.
+
+The original CLI remains supported, including an extended identity form:
+
+```sh
+./ticle irc.example.net 6667 TiCle scripts/example.tcl ticle "TiCle IRC bot"
+```
+
+TLS is not implemented yet. Use a test IRC server or local IRC daemon where plain TCP is acceptable.
+
+## Tcl API
+
+The low-level escape hatch remains available:
 
 ```tcl
 ticle::raw "PRIVMSG #channel :hello"
@@ -87,11 +101,17 @@ proc ticle::on_line {line} {
 }
 ```
 
-The Tcl API will grow toward structured IRC events rather than requiring scripts to parse raw protocol lines themselves.
+Structured helpers are available for `PRIVMSG`, `NOTICE`, `JOIN`, `PART`, `NICK`, `MODE`, `KICK`, and `WHOIS`. Incoming lines are parsed into structured message dictionaries and command-specific callbacks. Tcl modules can be loaded, unloaded, and reloaded through the module lifecycle API.
+
+Run the regression suite with:
+
+```sh
+make check
+```
 
 ## Roadmap direction
 
-After M0, likely milestones include structured IRC parsing/events, reconnect/backoff, configuration, TLS, IRCv3 capability negotiation, channel management, timers, modular Tcl loading, privilege/sandbox controls, tests, packaging/OCI, and optional PBMP integration.
+M1 establishes the structured Tcl API, module lifecycle, parser/config regression tests, IRC identity handling, and startup configuration. M2 focuses on transport reliability: a nonblocking event loop, reconnect/backoff, connection state, nick-collision handling, and outbound flood/rate control. Later milestones cover TLS, IRCv3, stronger Tcl privilege boundaries, OCI/operations, and optional PBMP integration.
 
 ## License
 
