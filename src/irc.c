@@ -26,9 +26,10 @@ int irc_parse_message(const char *line, struct irc_message *msg) {
     *space = '\0';
     p = space + 1;
 
-    while (*p && msg->nparams < TICLE_IRC_MAX_PARAMS) {
+    while (*p) {
         while (*p == ' ') ++p;
         if (!*p) break;
+        if (msg->nparams >= TICLE_IRC_MAX_PARAMS) return -1;
         if (*p == ':') {
             msg->params[msg->nparams++] = p + 1;
             break;
