@@ -13,6 +13,7 @@
 
 #include "irc.h"
 #include "config.h"
+#include "state.h"
 
 #define TICLE_BUFSIZE TICLE_IRC_BUFSIZE
 
@@ -196,8 +197,15 @@ int main(int argc, char **argv) {
         fprintf(stderr, "usage: %s -c config | host port nick script.tcl [user realname]\n", argv[0]);
         return 2;
     }
+    ctx.state = TICLE_DISCONNECTED;
+    ctx.state = TICLE_CONNECTING;
     ctx.sock = connect_tcp(host, port);
-    if (ctx.sock < 0) { fprintf(stderr, "unable to connect to %s:%s\n", host, port); return 1; }
+    if (ctx.sock < 0) {
+        ctx.state = TICLE_DISCONNECTED;
+        fprintf(stderr, "unable to connect to %s:%s\n", host, port);
+        return 1;
+    }
+    ctx.state = TICLE_REGISTERING;
 
     Tcl_FindExecutable(argv[0]);
     ctx.interp = Tcl_CreateInterp();
@@ -220,7 +228,9 @@ int main(int argc, char **argv) {
         fprintf(stderr, "failed to register on IRC\n");
         Tcl_DeleteInterp(ctx.interp); Tcl_Finalize(); close(ctx.sock); return 1;
     }
+    ctx.state = TICLE_ONLINE;
     (void)run_loop(&ctx);
+    ctx.state = TICLE_STOPPING;
     Tcl_DeleteInterp(ctx.interp); Tcl_Finalize(); close(ctx.sock);
     return 0;
 }
