@@ -90,6 +90,33 @@ proc ticle::nick {nickname} {
     ticle::raw "NICK $nickname"
 }
 
+proc ticle::mode {target modes args} {
+    ticle::validate_atom $target target
+    ticle::validate_atom $modes modes
+    set line "MODE $target $modes"
+    foreach arg $args {
+        ticle::validate_atom $arg {mode argument}
+        append line " $arg"
+    }
+    ticle::raw $line
+}
+
+proc ticle::kick {channel nickname {reason ""}} {
+    ticle::validate_atom $channel channel
+    ticle::validate_atom $nickname nickname
+    ticle::validate_text $reason
+    if {$reason eq ""} {
+        ticle::raw "KICK $channel $nickname"
+    } else {
+        ticle::raw "KICK $channel $nickname :$reason"
+    }
+}
+
+proc ticle::whois {nickname} {
+    ticle::validate_atom $nickname nickname
+    ticle::raw "WHOIS $nickname"
+}
+
 proc ticle::reply {msg text} {
     set target [dict get $msg target]
     if {![string match "#*" $target]} {
