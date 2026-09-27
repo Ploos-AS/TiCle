@@ -128,57 +128,76 @@ static void dispatch_tcl_line(struct ticle_ctx *ctx, const char *line) {
     eval_callback(ctx, 2, objv);
 }
 
-static void dispatch_tcl_message(struct ticle_ctx *ctx, const struct irc_message *msg) {
-    Tcl_CmdInfo info;
-    Tcl_Obj *objv[2], *dict, *params;
+static Tcl_Obj *message_dict(struct ticle_ctx *ctx, const struct irc_message *msg) {
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    Tcl_Obj *params = Tcl_NewListObj(0, NULL);
+    const char *nick = "", *user = "", *host = "";
+    char identity[TICLE_BUFSIZE];
+    char *bang, *at;
     int i;
-    if (!Tcl_GetCommandInfo(ctx->interp, "ticle::on_message", &info)) return;
 
-    dict = Tcl_NewDictObj();
     Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("prefix", -1),
                    Tcl_NewStringObj(msg->prefix ? msg->prefix : "", -1));
     Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("command", -1),
                    Tcl_NewStringObj(msg->command, -1));
-    params = Tcl_NewListObj(0, NULL);
+
     for (i = 0; i < msg->nparams; ++i)
         Tcl_ListObjAppendElement(ctx->interp, params, Tcl_NewStringObj(msg->params[i], -1));
     Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("params", -1), params);
 
+    if (msg->prefix && strlen(msg->prefix) < sizeof identity) {
+        strcpy(identity, msg->prefix);
+        bang = strchr(identity, '!');
+        at = bang ? strchr(bang + 1, '@') : NULL;
+        if (bang && at) {
+            *bang = '\0';
+            *at = '\0';
+            nick = identity;
+            user = bang + 1;
+            host = at + 1;
+        }
+    }
+
+    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("nick", -1),
+                   Tcl_NewStringObj(nick, -1));
+    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("user", -1),
+                   Tcl_NewStringObj(user, -1));
+    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("host", -1),
+                   Tcl_NewStringObj(host, -1));
+    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("target", -1),
+                   Tcl_NewStringObj(msg->nparams > 0 ? msg->params[0] : "", -1));
+    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("text", -1),
+                   Tcl_NewStringObj(msg->nparams > 1 ? msg->params[msg->nparams - 1] : "", -1));
+    return dict;
+}
+
+static void dispatch_tcl_message(struct ticle_ctx *ctx, const struct irc_message *msg) {
+    Tcl_CmdInfo info;
+    Tcl_Obj *objv[2];
+    if (!Tcl_GetCommandInfo(ctx->interp, "ticle::on_message", &info)) return;
     objv[0] = Tcl_NewStringObj("ticle::on_message", -1);
-    objv[1] = dict;
+    objv[1] = message_dict(ctx, msg);
     eval_callback(ctx, 2, objv);
 }
 
 static void dispatch_tcl_typed(struct ticle_ctx *ctx, const struct irc_message *msg) {
     Tcl_CmdInfo info;
-    Tcl_Obj *objv[2], *dict, *params;
+    Tcl_Obj *objv[2];
     char callback[64];
-    size_t i, n;
+    size_t i, n, base = strlen("ticle::on_");
 
     n = strlen(msg->command);
-    if (n + strlen("ticle::on_") + 1 > sizeof callback) return;
+    if (base + n + 1 > sizeof callback) return;
     strcpy(callback, "ticle::on_");
     for (i = 0; i < n; ++i) {
         char ch = msg->command[i];
-        callback[strlen("ticle::on_") + i] =
-            (ch >= 'A' && ch <= 'Z') ? (char)(ch - 'A' + 'a') : ch;
+        callback[base + i] = (ch >= 'A' && ch <= 'Z') ? (char)(ch - 'A' + 'a') : ch;
     }
-    callback[strlen("ticle::on_") + n] = '\0';
+    callback[base + n] = '\0';
 
     if (!Tcl_GetCommandInfo(ctx->interp, callback, &info)) return;
-
-    dict = Tcl_NewDictObj();
-    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("prefix", -1),
-                   Tcl_NewStringObj(msg->prefix ? msg->prefix : "", -1));
-    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("command", -1),
-                   Tcl_NewStringObj(msg->command, -1));
-    params = Tcl_NewListObj(0, NULL);
-    for (i = 0; i < (size_t)msg->nparams; ++i)
-        Tcl_ListObjAppendElement(ctx->interp, params, Tcl_NewStringObj(msg->params[i], -1));
-    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("params", -1), params);
-
     objv[0] = Tcl_NewStringObj(callback, -1);
-    objv[1] = dict;
+    objv[1] = message_dict(ctx, msg);
     eval_callback(ctx, 2, objv);
 }
 
