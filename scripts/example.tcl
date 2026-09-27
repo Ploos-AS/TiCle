@@ -1,24 +1,24 @@
 namespace eval ticle {}
 
-proc ticle::on_line {line} {
-    puts "IRC: $line"
+source [file join [file dirname [info script]] core.tcl]
+
+proc cmd_ping {msg args} {
+    ticle::reply $msg "pong"
 }
 
-proc ticle::on_privmsg {msg} {
-    set nick [dict get $msg nick]
-    set target [dict get $msg target]
-    set text [dict get $msg text]
-
-    if {$text ne "!ping"} {
+proc cmd_echo {msg args} {
+    if {[llength $args] == 0} {
+        ticle::reply $msg "usage: !echo <text>"
         return
     }
+    ticle::reply $msg [join $args " "]
+}
 
-    if {[string index $target 0] eq "#"} {
-        set reply_target $target
-    } else {
-        set reply_target $nick
-    }
-    ticle::raw "PRIVMSG $reply_target :pong"
+ticle::bind !ping cmd_ping
+ticle::bind !echo cmd_echo
+
+proc ticle::on_privmsg {msg} {
+    ticle::dispatch_command $msg
 }
 
 proc ticle::on_join {msg} {
