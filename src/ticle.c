@@ -177,10 +177,15 @@ static int run_loop(struct ticle_ctx *ctx) {
 
 int main(int argc, char **argv) {
     struct ticle_ctx ctx;
-    const char *host, *port, *nick, *script;
-    char reg[TICLE_BUFSIZE];
-    if (argc != 5) { fprintf(stderr, "usage: %s host port nick script.tcl\n", argv[0]); return 2; }
+    const char *host, *port, *nick, *user, *realname, *script;
+    char nick_line[TICLE_BUFSIZE], user_line[TICLE_BUFSIZE];
+    if (argc != 5 && argc != 7) {
+        fprintf(stderr, "usage: %s host port nick script.tcl [user realname]\n", argv[0]);
+        return 2;
+    }
     host = argv[1]; port = argv[2]; nick = argv[3]; script = argv[4];
+    user = argc == 7 ? argv[5] : nick;
+    realname = argc == 7 ? argv[6] : "TiCle IRC bot";
     ctx.sock = connect_tcp(host, port);
     if (ctx.sock < 0) { fprintf(stderr, "unable to connect to %s:%s\n", host, port); return 1; }
 
@@ -197,10 +202,11 @@ int main(int argc, char **argv) {
         fprintf(stderr, "script error: %s\n", Tcl_GetStringResult(ctx.interp));
         Tcl_DeleteInterp(ctx.interp); Tcl_Finalize(); close(ctx.sock); return 1;
     }
-    if (snprintf(reg, sizeof reg, "NICK %s", nick) >= (int)sizeof reg ||
-        irc_send_line(&ctx, reg) < 0 ||
-        snprintf(reg, sizeof reg, "USER %s 0 * :TiCle IRC bot", nick) >= (int)sizeof reg ||
-        irc_send_line(&ctx, reg) < 0) {
+    if (irc_format_registration(nick_line, sizeof nick_line,
+                                user_line, sizeof user_line,
+                                nick, user, realname) < 0 ||
+        irc_send_line(&ctx, nick_line) < 0 ||
+        irc_send_line(&ctx, user_line) < 0) {
         fprintf(stderr, "failed to register on IRC\n");
         Tcl_DeleteInterp(ctx.interp); Tcl_Finalize(); close(ctx.sock); return 1;
     }
