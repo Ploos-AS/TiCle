@@ -7,6 +7,7 @@ import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CRLF = bytes((13, 10))
 
 def recv_line(conn, timeout=5.0):
     conn.settimeout(timeout)
