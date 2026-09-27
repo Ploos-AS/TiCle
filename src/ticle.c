@@ -16,6 +16,7 @@
 #include "irc.h"
 #include "config.h"
 #include "state.h"
+#include "backoff.h"
 
 #define TICLE_BUFSIZE TICLE_IRC_BUFSIZE
 
@@ -294,39 +295,70 @@ int main(int argc, char **argv) {
         return 2;
     }
     ctx.state = TICLE_DISCONNECTED;
-    ctx.state = TICLE_CONNECTING;
-    ctx.sock = connect_tcp(host, port);
-    if (ctx.sock < 0) {
-        ctx.state = TICLE_DISCONNECTED;
-        fprintf(stderr, "unable to connect to %s:%s\n", host, port);
-        return 1;
-    }
-    ctx.state = TICLE_REGISTERING;
+    ctx.sock = -1;
 
     Tcl_FindExecutable(argv[0]);
     ctx.interp = Tcl_CreateInterp();
     if (!ctx.interp || Tcl_Init(ctx.interp) != TCL_OK) {
         fprintf(stderr, "unable to initialize Tcl: %s\n",
                 ctx.interp ? Tcl_GetStringResult(ctx.interp) : "allocation failure");
-        close(ctx.sock); return 1;
+        return 1;
     }
     Tcl_CreateNamespace(ctx.interp, "ticle", NULL, NULL);
     Tcl_CreateObjCommand(ctx.interp, "ticle::raw", tcl_raw_cmd, &ctx, NULL);
     if (Tcl_EvalFile(ctx.interp, script) != TCL_OK) {
         fprintf(stderr, "script error: %s\n", Tcl_GetStringResult(ctx.interp));
-        Tcl_DeleteInterp(ctx.interp); Tcl_Finalize(); close(ctx.sock); return 1;
+        Tcl_DeleteInterp(ctx.interp);
+        Tcl_Finalize();
+        return 1;
     }
-    if (irc_format_registration(nick_line, sizeof nick_line,
-                                user_line, sizeof user_line,
-                                nick, user, realname) < 0 ||
-        irc_send_line(&ctx, nick_line) < 0 ||
-        irc_send_line(&ctx, user_line) < 0) {
-        fprintf(stderr, "failed to register on IRC\n");
-        Tcl_DeleteInterp(ctx.interp); Tcl_Finalize(); close(ctx.sock); return 1;
+
+    {
+        unsigned int attempt = 0;
+        for (;;) {
+            unsigned int delay;
+
+            ctx.state = TICLE_CONNECTING;
+            ctx.sock = connect_tcp(host, port);
+            if (ctx.sock < 0) {
+                ctx.state = TICLE_DISCONNECTED;
+                delay = ticle_backoff_seconds(attempt++);
+                fprintf(stderr, "unable to connect to %s:%s; retrying in %u seconds\n",
+                        host, port, delay);
+                sleep(delay);
+                continue;
+            }
+
+            ctx.state = TICLE_REGISTERING;
+            if (irc_format_registration(nick_line, sizeof nick_line,
+                                        user_line, sizeof user_line,
+                                        nick, user, realname) < 0 ||
+                irc_send_line(&ctx, nick_line) < 0 ||
+                irc_send_line(&ctx, user_line) < 0) {
+                fprintf(stderr, "failed to register on IRC\n");
+                close(ctx.sock);
+                ctx.sock = -1;
+                ctx.state = TICLE_DISCONNECTED;
+                delay = ticle_backoff_seconds(attempt++);
+                sleep(delay);
+                continue;
+            }
+
+            ctx.state = TICLE_ONLINE;
+            attempt = 0;
+            (void)run_loop(&ctx);
+            close(ctx.sock);
+            ctx.sock = -1;
+            ctx.state = TICLE_DISCONNECTED;
+
+            delay = ticle_backoff_seconds(attempt++);
+            fprintf(stderr, "IRC connection lost; reconnecting in %u seconds\n", delay);
+            sleep(delay);
+        }
     }
-    ctx.state = TICLE_ONLINE;
-    (void)run_loop(&ctx);
+
     ctx.state = TICLE_STOPPING;
-    Tcl_DeleteInterp(ctx.interp); Tcl_Finalize(); close(ctx.sock);
+    Tcl_DeleteInterp(ctx.interp);
+    Tcl_Finalize();
     return 0;
 }
