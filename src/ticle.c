@@ -23,6 +23,7 @@
 
 #define TICLE_BUFSIZE TICLE_IRC_BUFSIZE
 #define TICLE_REGISTRATION_TIMEOUT_SECONDS 30
+#define TICLE_LIVENESS_TIMEOUT_SECONDS 180
 
 static volatile sig_atomic_t ticle_stop_requested = 0;
 
@@ -52,6 +53,7 @@ struct ticle_ctx {
     const char *base_nick;
     unsigned int nick_collision;
     struct timespec registration_started;
+    struct timespec last_rx;
 };
 
 static int send_all(int fd, const char *buf, size_t len) {
@@ -274,6 +276,15 @@ static int run_loop(struct ticle_ctx *ctx) {
     for (;;) {
         int ready = poll(&pfd, 1, 1000);
         if (ticle_stop_requested) return 0;
+        if (ctx->state == TICLE_ONLINE && ctx->last_rx.tv_sec != 0) {
+            struct timespec now;
+            if (clock_gettime(CLOCK_MONOTONIC, &now) == 0 &&
+                now.tv_sec - ctx->last_rx.tv_sec >= TICLE_LIVENESS_TIMEOUT_SECONDS) {
+                fprintf(stderr, "IRC connection inactive for %d seconds\n",
+                        TICLE_LIVENESS_TIMEOUT_SECONDS);
+                return -1;
+            }
+        }
         if (ctx->state == TICLE_REGISTERING &&
             ctx->registration_started.tv_sec != 0) {
             struct timespec now;
@@ -305,6 +316,8 @@ static int run_loop(struct ticle_ctx *ctx) {
             ssize_t n = recv(ctx->sock, in, sizeof in, 0);
             size_t i;
             if (n == 0) return 0;
+            if (n > 0)
+                (void)clock_gettime(CLOCK_MONOTONIC, &ctx->last_rx);
             if (n < 0) {
                 if (errno == EINTR) continue;
                 if (errno == EAGAIN || errno == EWOULDBLOCK) break;
@@ -359,6 +372,8 @@ int main(int argc, char **argv) {
     ctx.nick_collision = 0;
     ctx.registration_started.tv_sec = 0;
     ctx.registration_started.tv_nsec = 0;
+    ctx.last_rx.tv_sec = 0;
+    ctx.last_rx.tv_nsec = 0;
 
     Tcl_FindExecutable(argv[0]);
     ctx.interp = Tcl_CreateInterp();
@@ -394,6 +409,8 @@ int main(int argc, char **argv) {
 
             ctx.state = TICLE_REGISTERING;
             ctx.nick_collision = 0;
+            ctx.last_rx.tv_sec = 0;
+            ctx.last_rx.tv_nsec = 0;
             if (clock_gettime(CLOCK_MONOTONIC, &ctx.registration_started) < 0) {
                 ctx.registration_started.tv_sec = 0;
                 ctx.registration_started.tv_nsec = 0;
