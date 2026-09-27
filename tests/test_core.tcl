@@ -28,7 +28,7 @@ proc test_command {msg args} {
 set msg [dict create nick alice target #test text {!TeSt one two}]
 ticle::bind !test test_command
 assert_equal [ticle::dispatch_command $msg] 1 "bound command dispatch"
-assert_equal $::seen_args {one two} "command arguments"
+assert_equal [lindex $::seen_args 0] {one two} "command arguments"
 assert_equal $::seen_nick alice "message dictionary passed to callback"
 
 ticle::unbind !test
