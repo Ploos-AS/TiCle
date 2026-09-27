@@ -22,6 +22,7 @@
 #include "nick.h"
 
 #define TICLE_BUFSIZE TICLE_IRC_BUFSIZE
+#define TICLE_REGISTRATION_TIMEOUT_SECONDS 30
 
 static volatile sig_atomic_t ticle_stop_requested = 0;
 
@@ -50,6 +51,7 @@ struct ticle_ctx {
     enum ticle_connection_state state;
     const char *base_nick;
     unsigned int nick_collision;
+    time_t registration_started;
 };
 
 static int send_all(int fd, const char *buf, size_t len) {
@@ -243,6 +245,7 @@ static void handle_line(struct ticle_ctx *ctx, const char *line) {
         if (ctx->state == TICLE_REGISTERING && strcmp(msg.command, "001") == 0) {
             ctx->state = TICLE_ONLINE;
             ctx->nick_collision = 0;
+            ctx->registration_started = (time_t)0;
         } else if (ctx->state == TICLE_REGISTERING && strcmp(msg.command, "433") == 0) {
             char candidate[TICLE_BUFSIZE];
             char command[TICLE_BUFSIZE];
@@ -270,6 +273,13 @@ static int run_loop(struct ticle_ctx *ctx) {
     for (;;) {
         int ready = poll(&pfd, 1, 1000);
         if (ticle_stop_requested) return 0;
+        if (ctx->state == TICLE_REGISTERING &&
+            ctx->registration_started != (time_t)0 &&
+            time(NULL) - ctx->registration_started >= TICLE_REGISTRATION_TIMEOUT_SECONDS) {
+            fprintf(stderr, "IRC registration timed out after %d seconds\n",
+                    TICLE_REGISTRATION_TIMEOUT_SECONDS);
+            return -1;
+        }
         if (ready == 0) continue;
         if (ready < 0) {
             if (errno == EINTR) continue;
@@ -342,6 +352,7 @@ int main(int argc, char **argv) {
     ctx.sock = -1;
     ctx.base_nick = nick;
     ctx.nick_collision = 0;
+    ctx.registration_started = (time_t)0;
 
     Tcl_FindExecutable(argv[0]);
     ctx.interp = Tcl_CreateInterp();
@@ -377,6 +388,7 @@ int main(int argc, char **argv) {
 
             ctx.state = TICLE_REGISTERING;
             ctx.nick_collision = 0;
+            ctx.registration_started = time(NULL);
             if (irc_format_registration(nick_line, sizeof nick_line,
                                         user_line, sizeof user_line,
                                         nick, user, realname) < 0 ||
