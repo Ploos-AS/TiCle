@@ -53,6 +53,23 @@ int main(void) {
     expect(irc_parse_message(":broken", &m) == -1, "prefix without command rejected");
     expect(irc_parse_message(NULL, &m) == -1, "NULL line rejected");
 
+    expect(irc_parse_message("PRIVMSG    #test    :spaced text", &m) == 0, "extra spaces parse");
+    expect(m.nparams == 2, "extra spaces parameter count");
+    expect_str(m.params[0], "#test", "extra spaces target");
+    expect_str(m.params[1], "spaced text", "extra spaces trailing text");
+
+    expect(irc_parse_message("CMD a b c d e f g h i j k l m n o", &m) == 0, "maximum parameters accepted");
+    expect(m.nparams == TICLE_IRC_MAX_PARAMS, "maximum parameter count");
+
+    expect(irc_parse_message("CMD a b c d e f g h i j k l m n o p", &m) == -1, "too many parameters rejected");
+
+    {
+        char overlong[TICLE_IRC_BUFSIZE + 1];
+        memset(overlong, 'A', sizeof overlong - 1);
+        overlong[sizeof overlong - 1] = '\0';
+        expect(irc_parse_message(overlong, &m) == -1, "overlong input rejected");
+    }
+
     puts("PASS: IRC parser tests");
     return 0;
 }
