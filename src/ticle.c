@@ -29,7 +29,22 @@ static int send_all(int fd, const char *buf, size_t len) {
     size_t off = 0;
     while (off < len) {
         ssize_t n = send(fd, buf + off, len - off, 0);
-        if (n < 0) { if (errno == EINTR) continue; return -1; }
+        if (n < 0) {
+            struct pollfd pfd;
+            int ready;
+            if (errno == EINTR) continue;
+            if (errno != EAGAIN && errno != EWOULDBLOCK) return -1;
+            pfd.fd = fd;
+            pfd.events = POLLOUT;
+            pfd.revents = 0;
+            do {
+                ready = poll(&pfd, 1, 10000);
+            } while (ready < 0 && errno == EINTR);
+            if (ready <= 0 || (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)))
+                return -1;
+            continue;
+        }
+        if (n == 0) return -1;
         off += (size_t)n;
     }
     return 0;
