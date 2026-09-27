@@ -4,6 +4,8 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <poll.h>
+#include <signal.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +21,27 @@
 #include "backoff.h"
 
 #define TICLE_BUFSIZE TICLE_IRC_BUFSIZE
+
+static volatile sig_atomic_t ticle_stop_requested = 0;
+
+static void ticle_signal_handler(int signo) {
+    (void)signo;
+    ticle_stop_requested = 1;
+}
+
+static int wait_seconds_interruptible(unsigned int seconds) {
+    struct timespec step = {0, 100000000L};
+    unsigned int ticks = seconds * 10U;
+    unsigned int i;
+    for (i = 0; i < ticks && !ticle_stop_requested; ++i) {
+        struct timespec remaining = step;
+        while (nanosleep(&remaining, &remaining) < 0) {
+            if (errno != EINTR) return -1;
+            if (ticle_stop_requested) return 0;
+        }
+    }
+    return 0;
+}
 
 struct ticle_ctx {
     int sock;
@@ -229,7 +252,9 @@ static int run_loop(struct ticle_ctx *ctx) {
     pfd.revents = 0;
 
     for (;;) {
-        int ready = poll(&pfd, 1, -1);
+        int ready = poll(&pfd, 1, 1000);
+        if (ticle_stop_requested) return 0;
+        if (ready == 0) continue;
         if (ready < 0) {
             if (errno == EINTR) continue;
             perror("poll");
@@ -294,6 +319,9 @@ int main(int argc, char **argv) {
         fprintf(stderr, "usage: %s -c config | host port nick script.tcl [user realname]\n", argv[0]);
         return 2;
     }
+    signal(SIGINT, ticle_signal_handler);
+    signal(SIGTERM, ticle_signal_handler);
+
     ctx.state = TICLE_DISCONNECTED;
     ctx.sock = -1;
 
@@ -315,7 +343,7 @@ int main(int argc, char **argv) {
 
     {
         unsigned int attempt = 0;
-        for (;;) {
+        while (!ticle_stop_requested) {
             unsigned int delay;
 
             ctx.state = TICLE_CONNECTING;
@@ -325,7 +353,7 @@ int main(int argc, char **argv) {
                 delay = ticle_backoff_seconds(attempt++);
                 fprintf(stderr, "unable to connect to %s:%s; retrying in %u seconds\n",
                         host, port, delay);
-                sleep(delay);
+                wait_seconds_interruptible(delay);
                 continue;
             }
 
@@ -340,7 +368,7 @@ int main(int argc, char **argv) {
                 ctx.sock = -1;
                 ctx.state = TICLE_DISCONNECTED;
                 delay = ticle_backoff_seconds(attempt++);
-                sleep(delay);
+                wait_seconds_interruptible(delay);
                 continue;
             }
 
@@ -350,10 +378,11 @@ int main(int argc, char **argv) {
             close(ctx.sock);
             ctx.sock = -1;
             ctx.state = TICLE_DISCONNECTED;
+            if (ticle_stop_requested) break;
 
             delay = ticle_backoff_seconds(attempt++);
             fprintf(stderr, "IRC connection lost; reconnecting in %u seconds\n", delay);
-            sleep(delay);
+            wait_seconds_interruptible(delay);
         }
     }
 
