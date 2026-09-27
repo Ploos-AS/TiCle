@@ -20,5 +20,9 @@ struct irc_identity {
 
 int irc_parse_message(const char *line, struct irc_message *msg);
 void irc_parse_identity(const char *prefix, struct irc_identity *identity);
+int irc_format_registration(char *nick_line, unsigned long nick_size,
+                            char *user_line, unsigned long user_size,
+                            const char *nick, const char *user,
+                            const char *realname);
 
 #endif
