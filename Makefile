@@ -44,6 +44,7 @@ check: ticle tests/test_irc tests/test_config tests/test_state tests/test_backof
 	./tests/test_nick
 	./tests/test_outqueue
 	tclsh tests/test_core.tcl
+	python3 tests/test_integration.py
 
 clean:
 	rm -f ticle tests/test_irc tests/test_config tests/test_state tests/test_backoff tests/test_nick tests/test_outqueue tests/.test-config.tmp
