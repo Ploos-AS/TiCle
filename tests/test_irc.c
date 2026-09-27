@@ -86,6 +86,33 @@ int main(void) {
         expect_str(identity.nick, "", "NULL prefix has no nick");
     }
 
+    {
+        char nick_line[128], user_line[256];
+        expect(irc_format_registration(nick_line, sizeof nick_line,
+                                       user_line, sizeof user_line,
+                                       "TiCle", "ticle", "TiCle IRC bot") == 0,
+               "registration formats");
+        expect_str(nick_line, "NICK TiCle", "registration NICK line");
+        expect_str(user_line, "USER ticle 0 * :TiCle IRC bot", "registration USER line");
+
+        expect(irc_format_registration(nick_line, sizeof nick_line,
+                                       user_line, sizeof user_line,
+                                       "bad nick", "ticle", "TiCle") == -1,
+               "registration rejects nick whitespace");
+        expect(irc_format_registration(nick_line, sizeof nick_line,
+                                       user_line, sizeof user_line,
+                                       "TiCle", "bad\nuser", "TiCle") == -1,
+               "registration rejects user injection");
+        expect(irc_format_registration(nick_line, sizeof nick_line,
+                                       user_line, sizeof user_line,
+                                       "TiCle", "ticle", "bad\r\nQUIT") == -1,
+               "registration rejects realname injection");
+        expect(irc_format_registration(nick_line, 5,
+                                       user_line, sizeof user_line,
+                                       "TiCle", "ticle", "TiCle") == -1,
+               "registration rejects truncated output");
+    }
+
     puts("PASS: IRC parser tests");
     return 0;
 }
