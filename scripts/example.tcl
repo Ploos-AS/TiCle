@@ -1,6 +1,8 @@
 namespace eval ticle {}
 
-source [file join [file dirname [info script]] core.tcl]
+set script_dir [file dirname [file normalize [info script]]]
+source [file join $script_dir core.tcl]
+ticle::module::load [file join $script_dir .. modules hello.tcl]
 
 proc cmd_ping {msg args} {
     ticle::reply $msg "pong"
