@@ -12,6 +12,13 @@ struct irc_message {
     int nparams;
 };
 
+struct irc_identity {
+    char nick[TICLE_IRC_BUFSIZE];
+    char user[TICLE_IRC_BUFSIZE];
+    char host[TICLE_IRC_BUFSIZE];
+};
+
 int irc_parse_message(const char *line, struct irc_message *msg);
+void irc_parse_identity(const char *prefix, struct irc_identity *identity);
 
 #endif
