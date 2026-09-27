@@ -14,8 +14,8 @@ endif
 
 all: ticle
 
-ticle: src/ticle.c src/irc.c src/irc.h src/config.c src/config.h src/state.c src/state.h src/backoff.c src/backoff.h src/nick.c src/nick.h
-	$(CC) $(CFLAGS) $(TCL_CFLAGS) -o $@ src/ticle.c src/irc.c src/config.c src/state.c src/backoff.c src/nick.c $(TCL_LIBS)
+ticle: src/ticle.c src/irc.c src/irc.h src/config.c src/config.h src/state.c src/state.h src/backoff.c src/backoff.h src/nick.c src/nick.h src/outqueue.c src/outqueue.h
+	$(CC) $(CFLAGS) $(TCL_CFLAGS) -o $@ src/ticle.c src/irc.c src/config.c src/state.c src/backoff.c src/nick.c src/outqueue.c $(TCL_LIBS)
 
 tests/test_irc: tests/test_irc.c src/irc.c src/irc.h
 	$(CC) $(CFLAGS) -o $@ tests/test_irc.c src/irc.c
@@ -32,14 +32,18 @@ tests/test_backoff: tests/test_backoff.c src/backoff.c src/backoff.h
 tests/test_nick: tests/test_nick.c src/nick.c src/nick.h
 	$(CC) $(CFLAGS) -o $@ tests/test_nick.c src/nick.c
 
-check: ticle tests/test_irc tests/test_config tests/test_state tests/test_backoff tests/test_nick
+tests/test_outqueue: tests/test_outqueue.c src/outqueue.c src/outqueue.h
+	$(CC) $(CFLAGS) -o $@ tests/test_outqueue.c src/outqueue.c
+
+check: ticle tests/test_irc tests/test_config tests/test_state tests/test_backoff tests/test_nick tests/test_outqueue
 	./ticle 2>/dev/null || true
 	./tests/test_irc
 	./tests/test_config
 	./tests/test_state
 	./tests/test_backoff
 	./tests/test_nick
+	./tests/test_outqueue
 	tclsh tests/test_core.tcl
 
 clean:
-	rm -f ticle tests/test_irc tests/test_config tests/test_state tests/test_backoff tests/test_nick tests/.test-config.tmp
+	rm -f ticle tests/test_irc tests/test_config tests/test_state tests/test_backoff tests/test_nick tests/test_outqueue tests/.test-config.tmp
