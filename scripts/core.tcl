@@ -56,7 +56,7 @@ proc ticle::validate_text {text} {
 proc ticle::privmsg {target text} {
     ticle::validate_atom $target target
     ticle::validate_text $text
-    ticle::privmsg $target $text
+    ticle::raw "PRIVMSG $target :$text"
 }
 
 proc ticle::notice {target text} {
@@ -95,7 +95,7 @@ proc ticle::reply {msg text} {
     if {![string match "#*" $target]} {
         set target [dict get $msg nick]
     }
-    ticle::raw "PRIVMSG $target :$text"
+    ticle::privmsg $target $text
 }
 
 namespace eval ticle::module {
