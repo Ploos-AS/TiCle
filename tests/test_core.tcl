@@ -70,6 +70,34 @@ if {![catch {ticle::join {#bad channel}}]} {
     fail "join accepted whitespace in channel"
 }
 
+ticle::mode #test +o alice
+assert_equal [lindex $::ticle::sent end] {MODE #test +o alice} "mode command"
+
+ticle::mode TiCle +i
+assert_equal [lindex $::ticle::sent end] {MODE TiCle +i} "user mode command"
+
+ticle::kick #test alice
+assert_equal [lindex $::ticle::sent end] {KICK #test alice} "kick command"
+
+ticle::kick #test alice {rule violation}
+assert_equal [lindex $::ticle::sent end] {KICK #test alice :rule violation} "kick reason"
+
+ticle::whois alice
+assert_equal [lindex $::ticle::sent end] {WHOIS alice} "whois command"
+
+if {![catch {ticle::mode #test +o {bad nick}}]} {
+    fail "mode accepted whitespace in argument"
+}
+if {![catch {ticle::kick #test "bad\nQUIT"}]} {
+    fail "kick accepted CR/LF in nickname"
+}
+if {![catch {ticle::kick #test alice "bad\r\nQUIT"}]} {
+    fail "kick accepted CR/LF in reason"
+}
+if {![catch {ticle::whois {bad nick}}]} {
+    fail "whois accepted whitespace in nickname"
+}
+
 set module [file join $root modules hello.tcl]
 set meta [ticle::module::load $module]
 assert_equal [dict get $meta name] hello "module metadata"
