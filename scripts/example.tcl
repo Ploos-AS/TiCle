@@ -5,25 +5,26 @@ proc ticle::on_line {line} {
 }
 
 proc ticle::on_privmsg {msg} {
-    set prefix [dict get $msg prefix]
-    set params [dict get $msg params]
-    if {[llength $params] < 2 || [lindex $params 1] ne "!ping"} {
+    set nick [dict get $msg nick]
+    set target [dict get $msg target]
+    set text [dict get $msg text]
+
+    if {$text ne "!ping"} {
         return
     }
 
-    set target [lindex $params 0]
     if {[string index $target 0] eq "#"} {
         set reply_target $target
     } else {
-        set reply_target [lindex [split $prefix !] 0]
+        set reply_target $nick
     }
     ticle::raw "PRIVMSG $reply_target :pong"
 }
 
 proc ticle::on_join {msg} {
-    puts "JOIN: [dict get $msg prefix] [dict get $msg params]"
+    puts "JOIN: [dict get $msg nick] -> [dict get $msg target]"
 }
 
 proc ticle::on_part {msg} {
-    puts "PART: [dict get $msg prefix] [dict get $msg params]"
+    puts "PART: [dict get $msg nick] -> [dict get $msg target]"
 }
