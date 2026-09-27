@@ -19,6 +19,7 @@
 #include "config.h"
 #include "state.h"
 #include "backoff.h"
+#include "nick.h"
 
 #define TICLE_BUFSIZE TICLE_IRC_BUFSIZE
 
@@ -47,6 +48,8 @@ struct ticle_ctx {
     int sock;
     Tcl_Interp *interp;
     enum ticle_connection_state state;
+    const char *base_nick;
+    unsigned int nick_collision;
 };
 
 static int send_all(int fd, const char *buf, size_t len) {
@@ -237,6 +240,19 @@ static void handle_line(struct ticle_ctx *ctx, const char *line) {
     }
     dispatch_tcl_line(ctx, line);
     if (irc_parse_message(line, &msg) == 0) {
+        if (ctx->state == TICLE_REGISTERING && strcmp(msg.command, "001") == 0) {
+            ctx->state = TICLE_ONLINE;
+            ctx->nick_collision = 0;
+        } else if (ctx->state == TICLE_REGISTERING && strcmp(msg.command, "433") == 0) {
+            char candidate[TICLE_BUFSIZE];
+            char command[TICLE_BUFSIZE];
+            ++ctx->nick_collision;
+            if (ticle_nick_candidate(candidate, sizeof candidate,
+                                     ctx->base_nick, ctx->nick_collision) == 0 &&
+                snprintf(command, sizeof command, "NICK %s", candidate) < (int)sizeof command) {
+                (void)irc_send_line(ctx, command);
+            }
+        }
         dispatch_tcl_message(ctx, &msg);
         dispatch_tcl_typed(ctx, &msg);
     }
@@ -324,6 +340,8 @@ int main(int argc, char **argv) {
 
     ctx.state = TICLE_DISCONNECTED;
     ctx.sock = -1;
+    ctx.base_nick = nick;
+    ctx.nick_collision = 0;
 
     Tcl_FindExecutable(argv[0]);
     ctx.interp = Tcl_CreateInterp();
@@ -358,6 +376,7 @@ int main(int argc, char **argv) {
             }
 
             ctx.state = TICLE_REGISTERING;
+            ctx.nick_collision = 0;
             if (irc_format_registration(nick_line, sizeof nick_line,
                                         user_line, sizeof user_line,
                                         nick, user, realname) < 0 ||
@@ -372,7 +391,6 @@ int main(int argc, char **argv) {
                 continue;
             }
 
-            ctx.state = TICLE_ONLINE;
             attempt = 0;
             (void)run_loop(&ctx);
             close(ctx.sock);
