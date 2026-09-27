@@ -42,3 +42,23 @@ int irc_parse_message(const char *line, struct irc_message *msg) {
     }
     return 0;
 }
+
+
+void irc_parse_identity(const char *prefix, struct irc_identity *identity) {
+    char copy[TICLE_IRC_BUFSIZE];
+    char *bang, *at;
+
+    memset(identity, 0, sizeof *identity);
+    if (!prefix || strlen(prefix) >= sizeof copy) return;
+    strcpy(copy, prefix);
+
+    bang = strchr(copy, '!');
+    at = bang ? strchr(bang + 1, '@') : NULL;
+    if (!bang || !at) return;
+
+    *bang = '\0';
+    *at = '\0';
+    strcpy(identity->nick, copy);
+    strcpy(identity->user, bang + 1);
+    strcpy(identity->host, at + 1);
+}
