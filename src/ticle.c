@@ -324,10 +324,10 @@ static int run_loop(struct ticle_ctx *ctx) {
             fprintf(stderr, "IRC socket poll error\n");
             return -1;
         }
-        if (pfd.revents & POLLHUP) {
-            return 0;
+        if (!(pfd.revents & POLLIN)) {
+            if (pfd.revents & POLLHUP) return 0;
+            continue;
         }
-        if (!(pfd.revents & POLLIN)) continue;
 
         for (;;) {
             ssize_t n = recv(ctx->sock, in, sizeof in, 0);
