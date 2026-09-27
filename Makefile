@@ -18,7 +18,7 @@ ticle: src/ticle.c
 	$(CC) $(CFLAGS) $(TCL_CFLAGS) -o $@ $< $(TCL_LIBS)
 
 check: ticle
-	./ticle 2>/dev/null || test $? -eq 2
+	sh -c './ticle 2>/dev/null; test "$?" -eq 2'
 	tclsh tests/test_core.tcl
 
 clean:
