@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <netdb.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -165,18 +166,53 @@ static void handle_line(struct ticle_ctx *ctx, const char *line) {
 static int run_loop(struct ticle_ctx *ctx) {
     char in[TICLE_BUFSIZE], line[TICLE_BUFSIZE];
     size_t used = 0;
+    struct pollfd pfd;
+
+    pfd.fd = ctx->sock;
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+
     for (;;) {
-        ssize_t n = recv(ctx->sock, in, sizeof in, 0);
-        size_t i;
-        if (n == 0) return 0;
-        if (n < 0) { if (errno == EINTR) continue; perror("recv"); return -1; }
-        for (i = 0; i < (size_t)n; ++i) {
-            char c = in[i];
-            if (c == '\n') {
-                if (used && line[used - 1] == '\r') --used;
-                line[used] = '\0'; handle_line(ctx, line); used = 0;
-            } else if (used + 1 < sizeof line) line[used++] = c;
-            else { fprintf(stderr, "dropping overlong IRC line\n"); used = 0; }
+        int ready = poll(&pfd, 1, -1);
+        if (ready < 0) {
+            if (errno == EINTR) continue;
+            perror("poll");
+            return -1;
+        }
+
+        if (pfd.revents & (POLLERR | POLLNVAL)) {
+            fprintf(stderr, "IRC socket poll error\n");
+            return -1;
+        }
+        if (pfd.revents & POLLHUP) {
+            return 0;
+        }
+        if (!(pfd.revents & POLLIN)) continue;
+
+        for (;;) {
+            ssize_t n = recv(ctx->sock, in, sizeof in, 0);
+            size_t i;
+            if (n == 0) return 0;
+            if (n < 0) {
+                if (errno == EINTR) continue;
+                perror("recv");
+                return -1;
+            }
+            for (i = 0; i < (size_t)n; ++i) {
+                char ch = in[i];
+                if (ch == '\n') {
+                    if (used && line[used - 1] == '\r') --used;
+                    line[used] = '\0';
+                    handle_line(ctx, line);
+                    used = 0;
+                } else if (used + 1 < sizeof line) {
+                    line[used++] = ch;
+                } else {
+                    fprintf(stderr, "dropping overlong IRC line\n");
+                    used = 0;
+                }
+            }
+            break;
         }
     }
 }
