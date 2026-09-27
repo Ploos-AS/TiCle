@@ -33,10 +33,34 @@ int main(void) {
     unlink(path);
 
     fp = fopen(path, "w");
+    expect(fp != NULL, "create explicit identity config");
+    fputs("host=irc.example.org\nport=6667\nnick=TiCle\nuser=botuser\n"
+          "realname=Custom TiCle Bot\nscript=scripts/example.tcl\n", fp);
+    fclose(fp);
+    expect(ticle_config_load(path, &c) == 0, "load explicit identity");
+    expect(strcmp(c.user, "botuser") == 0, "explicit user");
+    expect(strcmp(c.realname, "Custom TiCle Bot") == 0, "explicit realname");
+    unlink(path);
+
+    fp = fopen(path, "w");
     expect(fp != NULL, "create invalid config");
     fputs("host=irc.example.org\nport=6667\nnick=TiCle\nscript=x.tcl\nunknown=yes\n", fp);
     fclose(fp);
     expect(ticle_config_load(path, &c) == -1, "unknown key rejected");
+    unlink(path);
+
+    fp = fopen(path, "w");
+    expect(fp != NULL, "create missing field config");
+    fputs("host=irc.example.org\nport=6667\nnick=TiCle\n", fp);
+    fclose(fp);
+    expect(ticle_config_load(path, &c) == -1, "missing script rejected");
+    unlink(path);
+
+    fp = fopen(path, "w");
+    expect(fp != NULL, "create empty value config");
+    fputs("host=irc.example.org\nport=6667\nnick=\nscript=x.tcl\n", fp);
+    fclose(fp);
+    expect(ticle_config_load(path, &c) == -1, "empty nick rejected");
     unlink(path);
 
     puts("PASS: config tests");
