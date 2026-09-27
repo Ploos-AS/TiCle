@@ -17,7 +17,11 @@
 
 #define TICLE_BUFSIZE TICLE_IRC_BUFSIZE
 
-struct ticle_ctx { int sock; Tcl_Interp *interp; };
+struct ticle_ctx {
+    int sock;
+    Tcl_Interp *interp;
+    enum ticle_connection_state state;
+};
 
 static int send_all(int fd, const char *buf, size_t len) {
     size_t off = 0;
