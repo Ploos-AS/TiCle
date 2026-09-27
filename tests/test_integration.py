@@ -58,10 +58,25 @@ try:
     pong = recv_line(conn)
     assert pong == "PONG :integration-token", pong
 
+    conn.close()
+    conn = None
+
+    server.settimeout(5.0)
+    conn, _ = server.accept()
+    first = recv_line(conn)
+    second = recv_line(conn)
+    assert first == "NICK TiCle", first
+    assert second == "USER ticle 0 * :TiCle integration test", second
+
+    conn.sendall(b":fake 001 TiCle :Welcome back\\r\\n")
+    conn.sendall(b"PING :reconnect-token\\r\\n")
+    pong = recv_line(conn)
+    assert pong == "PONG :reconnect-token", pong
+
     proc.send_signal(signal.SIGTERM)
     rc = proc.wait(timeout=5.0)
     assert rc == 0, rc
-    print("PASS: fake IRC integration")
+    print("PASS: fake IRC integration with reconnect")
 finally:
     if conn is not None:
         conn.close()
