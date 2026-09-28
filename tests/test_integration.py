@@ -69,8 +69,8 @@ try:
     assert first == "NICK TiCle", first
     assert second == "USER ticle 0 * :TiCle integration test", second
 
-    conn.sendall(b":fake 001 TiCle :Welcome back\\r\\n")
-    conn.sendall(b"PING :reconnect-token\\r\\n")
+    conn.sendall(b":fake 001 TiCle :Welcome back" + CRLF)
+    conn.sendall(b"PING :reconnect-token" + CRLF)
     pong = recv_line(conn)
     assert pong == "PONG :reconnect-token", pong
 
