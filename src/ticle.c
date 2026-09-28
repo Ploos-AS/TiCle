@@ -53,6 +53,7 @@ struct ticle_ctx {
     enum ticle_connection_state state;
     const char *base_nick;
     unsigned int nick_collision;
+    unsigned int reconnect_attempt;
     struct timespec registration_started;
     struct timespec last_rx;
     struct timespec last_tx;
@@ -254,6 +255,7 @@ static void handle_line(struct ticle_ctx *ctx, const char *line) {
         if (ctx->state == TICLE_REGISTERING && strcmp(msg.command, "001") == 0) {
             ctx->state = TICLE_ONLINE;
             ctx->nick_collision = 0;
+            ctx->reconnect_attempt = 0;
             ctx->registration_started.tv_sec = 0;
             ctx->registration_started.tv_nsec = 0;
         } else if (ctx->state == TICLE_REGISTERING && strcmp(msg.command, "433") == 0) {
@@ -387,6 +389,7 @@ int main(int argc, char **argv) {
     ctx.sock = -1;
     ctx.base_nick = nick;
     ctx.nick_collision = 0;
+    ctx.reconnect_attempt = 0;
     ctx.registration_started.tv_sec = 0;
     ctx.registration_started.tv_nsec = 0;
     ctx.last_rx.tv_sec = 0;
@@ -412,7 +415,6 @@ int main(int argc, char **argv) {
     }
 
     {
-        unsigned int attempt = 0;
         while (!ticle_stop_requested) {
             unsigned int delay;
 
@@ -420,7 +422,7 @@ int main(int argc, char **argv) {
             ctx.sock = connect_tcp(host, port);
             if (ctx.sock < 0) {
                 ctx.state = TICLE_DISCONNECTED;
-                delay = ticle_backoff_seconds(attempt++);
+                delay = ticle_backoff_seconds(ctx.reconnect_attempt++);
                 fprintf(stderr, "unable to connect to %s:%s; retrying in %u seconds\n",
                         host, port, delay);
                 wait_seconds_interruptible(delay);
@@ -447,19 +449,18 @@ int main(int argc, char **argv) {
                 close(ctx.sock);
                 ctx.sock = -1;
                 ctx.state = TICLE_DISCONNECTED;
-                delay = ticle_backoff_seconds(attempt++);
+                delay = ticle_backoff_seconds(ctx.reconnect_attempt++);
                 wait_seconds_interruptible(delay);
                 continue;
             }
 
-            attempt = 0;
             (void)run_loop(&ctx);
             close(ctx.sock);
             ctx.sock = -1;
             ctx.state = TICLE_DISCONNECTED;
             if (ticle_stop_requested) break;
 
-            delay = ticle_backoff_seconds(attempt++);
+            delay = ticle_backoff_seconds(ctx.reconnect_attempt++);
             fprintf(stderr, "IRC connection lost; reconnecting in %u seconds\n", delay);
             wait_seconds_interruptible(delay);
         }
