@@ -40,7 +40,23 @@ int main(void) {
     expect(m.nparams == 2, "numeric parameter count");
     expect_str(m.params[1], "Welcome", "numeric trailing parameter");
 
-    expect(irc_parse_message("PING :token", &m) == 0, "PING parses");
+    expect(irc_parse_message("@time=2026-09-28T02:00:00Z;account=alice :alice!u@example PRIVMSG #test :tagged", &m) == 0, "IRCv3 tags parse");
+    expect(m.ntags == 2, "IRCv3 tag count");
+    expect_str(m.tags[0].key, "time", "IRCv3 time key");
+    expect_str(m.tags[0].value, "2026-09-28T02:00:00Z", "IRCv3 time value");
+    expect_str(m.tags[1].key, "account", "IRCv3 account key");
+    expect_str(m.tags[1].value, "alice", "IRCv3 account value");
+    expect_str(m.command, "PRIVMSG", "tagged command");
+    expect_str(m.params[1], "tagged", "tagged trailing text");
+
+    expect(irc_parse_message("@draft/flag PING :token", &m) == 0, "valueless IRCv3 tag parses");
+    expect(m.ntags == 1, "valueless tag count");
+    expect_str(m.tags[0].key, "draft/flag", "valueless tag key");
+    expect(m.tags[0].value == NULL, "valueless tag has NULL value");
+
+    expect(irc_parse_message("@=bad PING :token", &m) == -1, "empty IRCv3 tag key rejected");
+
+        expect(irc_parse_message("PING :token", &m) == 0, "PING parses");
     expect(m.prefix == NULL, "PING has no prefix");
     expect_str(m.command, "PING", "PING command");
     expect_str(m.params[0], "token", "PING token");
