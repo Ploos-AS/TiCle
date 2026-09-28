@@ -3,9 +3,17 @@
 
 #define TICLE_IRC_BUFSIZE 4096
 #define TICLE_IRC_MAX_PARAMS 15
+#define TICLE_IRC_MAX_TAGS 32
+
+struct irc_tag {
+    char *key;
+    char *value;
+};
 
 struct irc_message {
     char storage[TICLE_IRC_BUFSIZE];
+    struct irc_tag tags[TICLE_IRC_MAX_TAGS];
+    int ntags;
     char *prefix;
     char *command;
     char *params[TICLE_IRC_MAX_PARAMS];
