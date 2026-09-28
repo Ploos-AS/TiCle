@@ -84,6 +84,18 @@ int main(void) {
 
         irc_parse_identity(NULL, &identity);
         expect_str(identity.nick, "", "NULL prefix has no nick");
+
+        {
+            char huge[TICLE_IRC_BUFSIZE];
+            memset(huge, 'x', sizeof huge - 1);
+            huge[sizeof huge - 1] = '\0';
+            {
+                char prefix[TICLE_IRC_BUFSIZE];
+                snprintf(prefix, sizeof prefix, "%s!u@h", huge);
+                irc_parse_identity(prefix, &identity);
+                expect_str(identity.nick, "", "oversized identity nick rejected");
+            }
+        }
     }
 
     {
