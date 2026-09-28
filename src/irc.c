@@ -11,6 +11,31 @@ int irc_parse_message(const char *line, struct irc_message *msg) {
     strcpy(msg->storage, line);
     p = msg->storage;
 
+    if (*p == '@') {
+        char *tags = ++p;
+        space = strchr(p, ' ');
+        if (!space) return -1;
+        *space = '\0';
+        p = space + 1;
+        while (*tags) {
+            char *end, *eq;
+            if (msg->ntags >= TICLE_IRC_MAX_TAGS) return -1;
+            end = strchr(tags, ';');
+            if (end) *end = '\0';
+            eq = strchr(tags, '=');
+            msg->tags[msg->ntags].key = tags;
+            if (eq) {
+                *eq = '\0';
+                msg->tags[msg->ntags].value = eq + 1;
+            }
+            if (!*msg->tags[msg->ntags].key) return -1;
+            ++msg->ntags;
+            if (!end) break;
+            tags = end + 1;
+        }
+        while (*p == ' ') ++p;
+    }
+
     if (*p == ':') {
         msg->prefix = ++p;
         space = strchr(p, ' ');
