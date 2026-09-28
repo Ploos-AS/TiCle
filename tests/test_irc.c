@@ -49,7 +49,10 @@ int main(void) {
     expect_str(m.command, "PRIVMSG", "tagged command");
     expect_str(m.params[1], "tagged", "tagged trailing text");
 
-    expect(irc_parse_message("@draft/flag PING :token", &m) == 0, "valueless IRCv3 tag parses");
+    expect(irc_parse_message("@escaped=semi\\:colon\\sword\\\\slash\\rreturn\\nline\\xunknown PING :token", &m) == 0, "escaped IRCv3 tag parses");
+    expect_str(m.tags[0].value, "semi;colon word\\slash\rreturn\nlinexunknown", "IRCv3 tag escapes decoded");
+
+        expect(irc_parse_message("@draft/flag PING :token", &m) == 0, "valueless IRCv3 tag parses");
     expect(m.ntags == 1, "valueless tag count");
     expect_str(m.tags[0].key, "draft/flag", "valueless tag key");
     expect(m.tags[0].value == NULL, "valueless tag has NULL value");
