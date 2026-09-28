@@ -55,6 +55,7 @@ try:
     assert fallback == "NICK TiCle_", fallback
 
     conn.sendall(b":fake 001 TiCle_ :Welcome\r\n")
+    conn.sendall(b"@time=2026-09-28T20:00:00Z;account=alice :alice!u@example JOIN #test\r\n")
     conn.sendall(b"PING :integration-token\r\n")
     pong = recv_line(conn)
     assert pong == "PONG :integration-token", pong
