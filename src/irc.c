@@ -59,6 +59,9 @@ void irc_parse_identity(const char *prefix, struct irc_identity *identity) {
 
     *bang = '\0';
     *at = '\0';
+    if (strlen(copy) >= sizeof identity->nick ||
+        strlen(bang + 1) >= sizeof identity->user ||
+        strlen(at + 1) >= sizeof identity->host) return;
     strcpy(identity->nick, copy);
     strcpy(identity->user, bang + 1);
     strcpy(identity->host, at + 1);
