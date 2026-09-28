@@ -3,6 +3,28 @@
 #include <stdio.h>
 #include <string.h>
 
+static void irc_unescape_tag_value(char *value) {
+    char *src = value, *dst = value;
+    while (*src) {
+        if (*src != '\\') {
+            *dst++ = *src++;
+            continue;
+        }
+        ++src;
+        if (!*src) break;
+        switch (*src) {
+        case ':': *dst++ = ';'; break;
+        case 's': *dst++ = ' '; break;
+        case '\\': *dst++ = '\\'; break;
+        case 'r': *dst++ = '\r'; break;
+        case 'n': *dst++ = '\n'; break;
+        default: *dst++ = *src; break;
+        }
+        ++src;
+    }
+    *dst = '\0';
+}
+
 int irc_parse_message(const char *line, struct irc_message *msg) {
     char *p, *space;
 
@@ -27,6 +49,7 @@ int irc_parse_message(const char *line, struct irc_message *msg) {
             if (eq) {
                 *eq = '\0';
                 msg->tags[msg->ntags].value = eq + 1;
+                irc_unescape_tag_value(msg->tags[msg->ntags].value);
             }
             if (!*msg->tags[msg->ntags].key) return -1;
             ++msg->ntags;
