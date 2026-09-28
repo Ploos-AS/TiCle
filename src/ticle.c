@@ -186,6 +186,7 @@ static void dispatch_tcl_line(struct ticle_ctx *ctx, const char *line) {
 static Tcl_Obj *message_dict(struct ticle_ctx *ctx, const struct irc_message *msg) {
     Tcl_Obj *dict = Tcl_NewDictObj();
     Tcl_Obj *params = Tcl_NewListObj(0, NULL);
+    Tcl_Obj *tags = Tcl_NewDictObj();
     struct irc_identity identity;
     int i;
 
@@ -197,6 +198,12 @@ static Tcl_Obj *message_dict(struct ticle_ctx *ctx, const struct irc_message *ms
     for (i = 0; i < msg->nparams; ++i)
         Tcl_ListObjAppendElement(ctx->interp, params, Tcl_NewStringObj(msg->params[i], -1));
     Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("params", -1), params);
+
+    for (i = 0; i < msg->ntags; ++i)
+        Tcl_DictObjPut(ctx->interp, tags,
+                       Tcl_NewStringObj(msg->tags[i].key, -1),
+                       Tcl_NewStringObj(msg->tags[i].value ? msg->tags[i].value : "", -1));
+    Tcl_DictObjPut(ctx->interp, dict, Tcl_NewStringObj("tags", -1), tags);
 
     irc_parse_identity(msg->prefix, &identity);
 
