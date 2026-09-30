@@ -32,10 +32,16 @@ tests/test_backoff: tests/test_backoff.c src/backoff.c src/backoff.h
 tests/test_nick: tests/test_nick.c src/nick.c src/nick.h
 	$(CC) $(CFLAGS) -o $@ tests/test_nick.c src/nick.c
 
+tests/test_pbmp: tests/test_pbmp.c src/pbmp.c src/pbmp.h
+	$(CC) $(CFLAGS) -o $@ tests/test_pbmp.c src/pbmp.c
+
+tests/pbmp_qualification: tests/pbmp_qualification.c src/pbmp.c src/pbmp.h
+	$(CC) $(CFLAGS) -o $@ tests/pbmp_qualification.c src/pbmp.c
+
 tests/test_outqueue: tests/test_outqueue.c src/outqueue.c src/outqueue.h
 	$(CC) $(CFLAGS) -o $@ tests/test_outqueue.c src/outqueue.c
 
-check: ticle tests/test_irc tests/test_config tests/test_state tests/test_backoff tests/test_nick tests/test_outqueue
+check: ticle tests/test_irc tests/test_config tests/test_state tests/test_backoff tests/test_nick tests/test_outqueue tests/test_pbmp
 	./ticle 2>/dev/null || true
 	./tests/test_irc
 	./tests/test_config
@@ -43,8 +49,9 @@ check: ticle tests/test_irc tests/test_config tests/test_state tests/test_backof
 	./tests/test_backoff
 	./tests/test_nick
 	./tests/test_outqueue
+	./tests/test_pbmp
 	tclsh tests/test_core.tcl
 	python3 tests/test_integration.py
 
 clean:
-	rm -f ticle tests/test_irc tests/test_config tests/test_state tests/test_backoff tests/test_nick tests/test_outqueue tests/.test-config.tmp
+	rm -f ticle tests/test_irc tests/test_config tests/test_state tests/test_backoff tests/test_nick tests/test_outqueue tests/test_pbmp tests/pbmp_qualification tests/.test-config.tmp
