@@ -29,3 +29,41 @@ jobs:
         run: make CFLAGS="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer"
       - name: Check with ASan and UBSan
         run: make CFLAGS="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer" check
+
+
+  pbmp-conformance:
+    runs-on: ubuntu-latest
+    env:
+      TICLE_PBMP_SOCKET: /tmp/ticle.pbmp.sock
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build qualification endpoint
+        run: make tests/pbmp_qualification
+      - name: Start TiCle PBMP qualification endpoint
+        run: |
+          ./tests/pbmp_qualification &
+          for i in {1..50}; do
+            test -S "$TICLE_PBMP_SOCKET" && exit 0
+            sleep 0.1
+          done
+          exit 1
+      - name: Check out PBMP qualification suite
+        uses: actions/checkout@v4
+        with:
+          repository: Ploos-AS/PBMP
+          ref: v1.0.0
+          path: .pbmp-suite
+      - name: Qualify TiCle against PBMP/1
+        run: |
+          python3 .pbmp-suite/tools/qualify_endpoint.py \
+            --socket "$TICLE_PBMP_SOCKET" \
+            --implementation-name ticle \
+            --implementation-version "$GITHUB_SHA" \
+            --output ticle-pbmp-conformance.json
+          python3 -c 'import json; r=json.load(open("ticle-pbmp-conformance.json")); assert r["result"] == "pass"'
+      - name: Upload PBMP conformance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ticle-pbmp-v1.0.0-conformance
+          path: ticle-pbmp-conformance.json
+          if-no-files-found: error
