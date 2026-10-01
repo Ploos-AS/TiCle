@@ -18,7 +18,7 @@ TiCle currently provides:
 - example Tcl script
 - simple build system and GitHub Actions CI
 
-TiCle does **not** require PBMP, BotAI, or BotWeb. Those are optional integrations planned on top of the standalone bot.
+TiCle does **not** require PBMP, BotWeb, BotAI, or BotLogic. Those are optional integrations planned on top of the standalone bot.
 
 ## Architecture
 
@@ -39,7 +39,7 @@ TiCle C core
                     +-- BotWeb
 ```
 
-PBMP is intended to be the integration boundary. TiCle should continue normal IRC operation if PBMP, BotAI, or BotWeb are unavailable.
+PBMP is intended to be the integration boundary. TiCle should continue normal IRC operation if PBMP, BotWeb, BotAI, or BotLogic are unavailable.
 
 ## Build
 
