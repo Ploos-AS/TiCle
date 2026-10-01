@@ -31,6 +31,26 @@ jobs:
         run: make CFLAGS="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer" check
 
 
+  standalone-contract:
+    runs-on: ubuntu-latest
+    env:
+      TICLE_PBMP_SOCKET: ""
+      TICLE_BOTWEB_URL: ""
+      TICLE_BOTAI_URL: ""
+      TICLE_BOTLOGIC_URL: ""
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install standalone dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config tcl-dev
+      - name: Qualify standalone core with all integrations disabled
+        run: |
+          test -z "$TICLE_PBMP_SOCKET"
+          test -z "$TICLE_BOTWEB_URL"
+          test -z "$TICLE_BOTAI_URL"
+          test -z "$TICLE_BOTLOGIC_URL"
+          make
+          make check
+
   pbmp-conformance:
     runs-on: ubuntu-latest
     env:
